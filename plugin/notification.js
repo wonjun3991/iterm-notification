@@ -48,6 +48,9 @@ export const NotificationPlugin = async ({ $ }) => {
       if (event.type === "permission.asked") {
         await notify("OpenCode", "Needs your attention")
       }
+      if (event.type === "question.asked") {
+        await notify("OpenCode", "Has a question for you")
+      }
     },
   }
 }
