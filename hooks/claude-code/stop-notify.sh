@@ -1,8 +1,17 @@
 #!/bin/bash
-APP_PATH="${ITERM_NOTIFIER_APP:-$(dirname "$0")/OpenCodeNotifier.app}"
 
-if [ -d "$APP_PATH" ]; then
-  open "$APP_PATH" --args "Claude Code" "Task completed"
-else
-  osascript -e 'display notification "Task completed" with title "Claude Code"'
-fi
+find_tty() {
+  local pid=$$
+  while [ "$pid" -gt 1 ]; do
+    local t
+    t=$(ps -o tty= -p "$pid" 2>/dev/null | tr -d ' ')
+    if [ -n "$t" ] && [ "$t" != "??" ]; then
+      echo "/dev/$t"
+      return
+    fi
+    pid=$(ps -o ppid= -p "$pid" 2>/dev/null | tr -d ' ')
+  done
+}
+
+TTY=$(find_tty)
+[ -n "$TTY" ] && printf '\e]9;%s\a' "Claude Code: Task completed" > "$TTY"

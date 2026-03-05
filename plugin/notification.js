@@ -1,21 +1,21 @@
-// OpenCode Notification Plugin - iTerm2 / Ghostty
-// iTerm2: OpenCodeNotifier.app (UNUserNotification, 클릭 시 iTerm 포커스)
-// Ghostty: OSC 777
 import { writeFileSync } from "node:fs"
 import { execSync } from "node:child_process"
-import { dirname, join } from "node:path"
-import { fileURLToPath } from "node:url"
 
 export const NotificationPlugin = async ({ $ }) => {
   const termProgram = process.env.TERM_PROGRAM || ""
-  const pluginDir = dirname(fileURLToPath(import.meta.url))
-  const notifierApp = join(pluginDir, "OpenCodeNotifier.app")
 
-  let ttyDevice = "/dev/tty"
-  try {
-    const tty = execSync(`ps -o tty= -p ${process.pid}`, { encoding: "utf-8" }).trim()
-    if (tty && tty !== "??") ttyDevice = `/dev/${tty}`
-  } catch {}
+  const findTty = () => {
+    let pid = process.pid
+    while (pid > 1) {
+      try {
+        const tty = execSync(`ps -o tty= -p ${pid}`, { encoding: "utf-8" }).trim()
+        if (tty && tty !== "??") return `/dev/${tty}`
+        pid = parseInt(execSync(`ps -o ppid= -p ${pid}`, { encoding: "utf-8" }).trim(), 10)
+      } catch { break }
+    }
+    return "/dev/tty"
+  }
+  const ttyDevice = findTty()
 
   const sendOsc = async (seq) => {
     try {
@@ -30,11 +30,7 @@ export const NotificationPlugin = async ({ $ }) => {
 
   const notify = async (title, message) => {
     if (termProgram.startsWith("iTerm")) {
-      try {
-        execSync(`open "${notifierApp}" --args "${title}" "${message}"`, {
-          stdio: "ignore",
-        })
-      } catch {}
+      await sendOsc(`9;${title}: ${message}`)
     } else {
       await sendOsc(`777;notify;${title};${message}`)
     }
@@ -45,11 +41,15 @@ export const NotificationPlugin = async ({ $ }) => {
       if (event.type === "session.idle") {
         await notify("OpenCode", "Task completed")
       }
-      if (event.type === "permission.asked") {
-        await notify("OpenCode", "Needs your attention")
+      if (
+        event.type === "session.status" &&
+        event.properties?.status?.type === "idle"
+      ) {
+        await notify("OpenCode", "Task completed")
       }
-      if (event.type === "question.asked") {
-        await notify("OpenCode", "Has a question for you")
+
+      if (event.type === "permission.updated" || event.type === "question.asked") {
+        await notify("OpenCode", "Needs your attention")
       }
     },
   }

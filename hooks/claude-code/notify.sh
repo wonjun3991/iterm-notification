@@ -1,11 +1,21 @@
 #!/bin/bash
-APP_PATH="${ITERM_NOTIFIER_APP:-$(dirname "$0")/OpenCodeNotifier.app}"
 
 INPUT=$(cat)
 MSG=$(echo "$INPUT" | jq -r '.message // "Needs your attention"')
 
-if [ -d "$APP_PATH" ]; then
-  open "$APP_PATH" --args "Claude Code" "$MSG"
-else
-  osascript -e "display notification \"$MSG\" with title \"Claude Code\""
-fi
+# Walk up the process tree to find the TTY
+find_tty() {
+  local pid=$$
+  while [ "$pid" -gt 1 ]; do
+    local t
+    t=$(ps -o tty= -p "$pid" 2>/dev/null | tr -d ' ')
+    if [ -n "$t" ] && [ "$t" != "??" ]; then
+      echo "/dev/$t"
+      return
+    fi
+    pid=$(ps -o ppid= -p "$pid" 2>/dev/null | tr -d ' ')
+  done
+}
+
+TTY=$(find_tty)
+[ -n "$TTY" ] && printf '\e]9;%s\a' "Claude Code: $MSG" > "$TTY"
